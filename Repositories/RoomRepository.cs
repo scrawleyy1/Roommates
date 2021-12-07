@@ -8,76 +8,80 @@ namespace Roommates.Repositories
     ///  This class is responsible for interacting with Room data.
     ///  It inherits from the BaseRepository class so that it can use the BaseRepository's Connection property
     /// </summary>
-    public class ChoreRepository : BaseRepository
+    public class RoomRepository : BaseRepository
     {
         /// <summary>
         ///  When new RoomRepository is instantiated, pass the connection string along to the BaseRepository
         /// </summary>
-        public ChoreRepository(string connectionString) : base(connectionString) { }
+        public RoomRepository(string connectionString) : base(connectionString) { }
 
         /// <summary>
         ///  Get a list of all Rooms in the database
         /// </summary>
-        public List<Room> GetAll()
+        public List<Room> All
         {
-            //  We must "use" the database connection.
-            //  Because a database is a shared resource (other applications may be using it too) we must
-            //  be careful about how we interact with it. Specifically, we Open() connections when we need to
-            //  interact with the database and we Close() them when we're finished.
-            //  In C#, a "using" block ensures we correctly disconnect from a resource even if there is an error.
-            //  For database connections, this means the connection will be properly closed.
-            using (SqlConnection conn = Connection)
+            get
             {
-                // Note, we must Open() the connection, the "using" block doesn't do that for us.
-                conn.Open();
-
-                // We must "use" commands too.
-                using (SqlCommand cmd = conn.CreateCommand())
+                //  We must "use" the database connection.
+                //  Because a database is a shared resource (other applications may be using it too) we must
+                //  be careful about how we interact with it. Specifically, we Open() connections when we need to
+                //  interact with the database and we Close() them when we're finished.
+                //  In C#, a "using" block ensures we correctly disconnect from a resource even if there is an error.
+                //  For database connections, this means the connection will be properly closed.
+                using (SqlConnection conn = Connection)
                 {
-                    // Here we setup the command with the SQL we want to execute before we execute it.
-                    cmd.CommandText = "SELECT Id, Name, MaxOccupancy FROM Room";
+                    // Note, we must Open() the connection, the "using" block doesn't do that for us.
+                    conn.Open();
 
-                    // Execute the SQL in the database and get a "reader" that will give us access to the data.
-                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    // We must "use" commands too.
+                    using (SqlCommand cmd = conn.CreateCommand())
                     {
-                        // A list to hold the rooms we retrieve from the database.
-                        List<Room> rooms = new List<Room>();
+                        // Here we setup the command with the SQL we want to execute before we execute it.
+                        cmd.CommandText = "SELECT Id, Name, MaxOccupancy FROM Room";
 
-                        // Read() will return true if there's more data to read
-                        while (reader.Read())
+                        // Execute the SQL in the database and get a "reader" that will give us access to the data.
+                        using (SqlDataReader reader = cmd.ExecuteReader())
                         {
-                            // The "ordinal" is the numeric position of the column in the query results.
-                            //  For our query, "Id" has an ordinal value of 0 and "Name" is 1.
-                            int idColumnPosition = reader.GetOrdinal("Id");
+                            // A list to hold the rooms we retrieve from the database.
+                            List<Room> rooms = new List<Room>();
 
-                            // We user the reader's GetXXX methods to get the value for a particular ordinal.
-                            int idValue = reader.GetInt32(idColumnPosition);
-
-                            int nameColumnPosition = reader.GetOrdinal("Name");
-                            string nameValue = reader.GetString(nameColumnPosition);
-
-                            int maxOccupancyColumPosition = reader.GetOrdinal("MaxOccupancy");
-                            int maxOccupancy = reader.GetInt32(maxOccupancyColumPosition);
-
-                            // Now let's create a new room object using the data from the database.
-                            Room room = new Room
+                            // Read() will return true if there's more data to read
+                            while (reader.Read())
                             {
-                                Id = idValue,
-                                Name = nameValue,
-                                MaxOccupancy = maxOccupancy,
-                            };
+                                // The "ordinal" is the numeric position of the column in the query results.
+                                //  For our query, "Id" has an ordinal value of 0 and "Name" is 1.
+                                int idColumnPosition = reader.GetOrdinal("Id");
 
-                            // ...and add that room object to our list.
-                            rooms.Add(room);
+                                // We user the reader's GetXXX methods to get the value for a particular ordinal.
+                                int idValue = reader.GetInt32(idColumnPosition);
+
+                                int nameColumnPosition = reader.GetOrdinal("Name");
+                                string nameValue = reader.GetString(nameColumnPosition);
+
+                                int maxOccupancyColumPosition = reader.GetOrdinal("MaxOccupancy");
+                                int maxOccupancy = reader.GetInt32(maxOccupancyColumPosition);
+
+                                // Now let's create a new room object using the data from the database.
+                                Room room = new Room
+                                {
+                                    Id = idValue,
+                                    Name = nameValue,
+                                    MaxOccupancy = maxOccupancy,
+                                };
+
+                                // ...and add that room object to our list.
+                                rooms.Add(room);
+                            }
+                            return rooms;
                         }
-                        return rooms;
+
+
+                        // Return the list of rooms who whomever called this method.
                     }
-
-
-                    // Return the list of rooms who whomever called this method.
                 }
             }
         }
+
         // ...We'll add some methods shortly...
         /// <summary>
         ///  Returns a single room with the given id.
@@ -137,6 +141,46 @@ namespace Roommates.Repositories
             }
 
             // when this method is finished we can look in the database and see the new room.
+        }
+        /// <summary>
+        ///  Updates the room
+        /// </summary>
+        public void Update(Room room)
+        {
+            using (SqlConnection conn = Connection)
+            {
+                conn.Open();
+                using (SqlCommand cmd = conn.CreateCommand())
+                {
+                    cmd.CommandText = @"UPDATE Room
+                                    SET Name = @name,
+                                        MaxOccupancy = @maxOccupancy
+                                    WHERE Id = @id";
+                    cmd.Parameters.AddWithValue("@name", room.Name);
+                    cmd.Parameters.AddWithValue("@maxOccupancy", room.MaxOccupancy);
+                    cmd.Parameters.AddWithValue("@id", room.Id);
+
+                    cmd.ExecuteNonQuery();
+                }
+            }
+        }
+
+        /// <summary>
+        ///  Delete the room with the given id
+        /// </summary>
+        public void Delete(int id)
+        {
+            using (SqlConnection conn = Connection)
+            {
+                conn.Open();
+                using (SqlCommand cmd = conn.CreateCommand())
+                {
+                    // What do you think this code will do if there is a roommate in the room we're deleting???
+                    cmd.CommandText = "DELETE FROM Room WHERE Id = @id";
+                    cmd.Parameters.AddWithValue("@id", id);
+                    cmd.ExecuteNonQuery();
+                }
+            }
         }
 
     }
